@@ -21,7 +21,6 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.lwjgl.opengl.GL11;
 
-import java.util.Collection;
 import java.util.List;
 
 public class BedListener {
@@ -29,7 +28,7 @@ public class BedListener {
     private IBlockState teamBed;
     private BlockPos bedPosition;
 
-    int timer = 0;
+    private long timer = 0;
     @SubscribeEvent
     public void onChat(ClientChatReceivedEvent event) {
         /* Search for nearest bed and set it as team bed */
@@ -45,7 +44,7 @@ public class BedListener {
                 Main.getInstance().getWhitelist().add(s);
             }
 
-            this.timer = 1;
+            this.timer = System.currentTimeMillis();
         } else if (event.message.getUnformattedText().contains("§f§lReward Summary")) {
             this.entitySearch = false;
             this.teamBed = null;
@@ -66,17 +65,18 @@ public class BedListener {
         return playerPos.distanceTo(bedPos);
     }
 
-    int loop = 0;
+    private long afkLoop = 0;
+    private int afkLoopStage;
     @SubscribeEvent
     public void onTick(TickEvent event) {
         if (this.timer > 0) {
-            if (this.timer == 80) {
+            if (System.currentTimeMillis() - this.timer >= 5000) {
                 this.timer = 0;
+
                 EntityPlayerSP player = Minecraft.getMinecraft().thePlayer;
                 BlockPos center = player.getPosition();
-
-                for (int z = center.getZ() - 100; z < center.getZ() + 100; z++) {
-                    for (int x = center.getX() - 100; x < center.getX() + 100; x++) {
+                for (int z = center.getZ() - 30; z < center.getZ() + 30; z++) {
+                    for (int x = center.getX() - 30; x < center.getX() + 30; x++) {
                         for (int y = center.getY() - 20; y < center.getY() + 20; y++) {
                             BlockPos pos = new BlockPos(x, y, z);
                             IBlockState state = Minecraft.getMinecraft().theWorld.getBlockState(pos);
@@ -102,7 +102,7 @@ public class BedListener {
                     this.teamBed = null;
                     this.bedPosition = null;
                     Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Failed to Find Team Bed. Trying again..."));
-                    this.timer = 1;
+                    this.timer = System.currentTimeMillis() - 4750;
                 } else {
                     Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "Found Team Bed"));
                     /* Whitelist all players within threshold when game first starts */
@@ -115,56 +115,53 @@ public class BedListener {
                     /* Whitelist watchdog bots */
                     Scoreboard scoreboard = Minecraft.getMinecraft().theWorld.getScoreboard();
                     scoreboard.getTeams().forEach(t -> {
-                        if (t.getColorPrefix().equals("§c")) {
-                            System.out.println("Registered Team Name: " + t.getRegisteredName());
-                            t.getMembershipCollection().forEach(m -> Main.getInstance().getWhitelist().add(m));
+                        if (t.getColorPrefix().contains("§c") && !t.getColorPrefix().contains("R")) {
+                            t.getMembershipCollection().forEach(m -> Main.getInstance().getWhitelist().add(m.toUpperCase()));
                         }
                     });
                 }
-            } else
-                this.timer++;
+            }
         }
         if (this.entitySearch && this.teamBed != null && this.bedPosition != null) {
-            switch (this.loop) {
-                case 40:
+            /* Anti AFK using System.currentTime */
+
+            if (System.currentTimeMillis() - this.afkLoop > 500) {
+                this.afkLoop = System.currentTimeMillis();
+                this.afkLoopStage++;
+            }
+
+            switch (this.afkLoopStage) {
+                case 1:
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindForward.getKeyCode(), true);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindBack.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindLeft.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindRight.getKeyCode(), false);
-                    this.loop++;
                     break;
-                case 80:
+                case 2:
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindForward.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindBack.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindLeft.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindRight.getKeyCode(), true);
-                    this.loop++;
                     break;
-                case 120:
+                case 3:
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindForward.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindBack.getKeyCode(), true);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindLeft.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindRight.getKeyCode(), false);
-                    this.loop++;
                     break;
-                case 160:
+                case 4:
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindForward.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindBack.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindLeft.getKeyCode(), true);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindRight.getKeyCode(), false);
-                    this.loop++;
                     break;
-                case 200:
+                case 5:
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindForward.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindBack.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindLeft.getKeyCode(), false);
                     KeyBinding.setKeyBindState(Minecraft.getMinecraft().gameSettings.keyBindRight.getKeyCode(), false);
-                    this.loop++;
-                    break;
-                case 3600:
-                    this.loop = 0;
-                default:
-                    this.loop++;
+                    this.afkLoop = System.currentTimeMillis() + 30000;
+                    this.afkLoopStage = 0;
                     break;
             }
 
