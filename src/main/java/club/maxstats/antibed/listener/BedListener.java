@@ -12,6 +12,8 @@ import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemEnderPearl;
+import net.minecraft.scoreboard.ScorePlayerTeam;
+import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.util.*;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
@@ -19,7 +21,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.lwjgl.opengl.GL11;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class BedListener {
@@ -33,14 +35,21 @@ public class BedListener {
         /* Search for nearest bed and set it as team bed */
         if (event.message.getFormattedText().contains("Protect your bed and destroy the enemy beds.")) {
             Main.getInstance().getWhitelist().clear();
-            this.timer++;
-        } else if (event.message.getUnformattedText().contains("§fReward Summary")) {
+            this.teamBed = null;
+            this.bedPosition = null;
+            this.entitySearch = false;
+
+            Main.getInstance().getWhitelist().add(Minecraft.getMinecraft().thePlayer.getName().toUpperCase());
+
+            for (String s : Main.getInstance().getPermaWhiteList()) {
+                Main.getInstance().getWhitelist().add(s);
+            }
+
+            this.timer = 1;
+        } else if (event.message.getUnformattedText().contains("§f§lReward Summary")) {
             this.entitySearch = false;
             this.teamBed = null;
             this.bedPosition = null;
-        } else if (event.message.getUnformattedText().contains("lorem ipsum")) {
-            /* Whitelist generation */
-
         }
     }
 
@@ -68,7 +77,7 @@ public class BedListener {
 
                 for (int z = center.getZ() - 100; z < center.getZ() + 100; z++) {
                     for (int x = center.getX() - 100; x < center.getX() + 100; x++) {
-                        for (int y = center.getY() - 10; y < center.getY() + 10; y++) {
+                        for (int y = center.getY() - 20; y < center.getY() + 20; y++) {
                             BlockPos pos = new BlockPos(x, y, z);
                             IBlockState state = Minecraft.getMinecraft().theWorld.getBlockState(pos);
                             if (state.getBlock() instanceof BlockBed) {
@@ -92,14 +101,25 @@ public class BedListener {
                     this.entitySearch = false;
                     this.teamBed = null;
                     this.bedPosition = null;
-                    Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Failed to Find Team Bed"));
+                    Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Failed to Find Team Bed. Trying again..."));
+                    this.timer = 1;
                 } else {
+                    Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "Found Team Bed"));
                     /* Whitelist all players within threshold when game first starts */
-                    AxisAlignedBB expandedAABB = this.teamBed.getBlock().getSelectedBoundingBox(Minecraft.getMinecraft().theWorld, this.bedPosition).expand(25, 100, 25);
+                    AxisAlignedBB expandedAABB = this.teamBed.getBlock().getSelectedBoundingBox(Minecraft.getMinecraft().theWorld, this.bedPosition).expand(18, 100, 18);
                     List<EntityPlayer> entities = Minecraft.getMinecraft().theWorld.getEntitiesWithinAABB(EntityPlayer.class, expandedAABB);
                     for (EntityPlayer entity : entities) {
                         Main.getInstance().getWhitelist().add(entity.getName().toUpperCase());
                     }
+
+                    /* Whitelist watchdog bots */
+                    Scoreboard scoreboard = Minecraft.getMinecraft().theWorld.getScoreboard();
+                    scoreboard.getTeams().forEach(t -> {
+                        if (t.getColorPrefix().equals("§c")) {
+                            System.out.println("Registered Team Name: " + t.getRegisteredName());
+                            t.getMembershipCollection().forEach(m -> Main.getInstance().getWhitelist().add(m));
+                        }
+                    });
                 }
             } else
                 this.timer++;
@@ -148,7 +168,7 @@ public class BedListener {
                     break;
             }
 
-            AxisAlignedBB expandedAABB = this.teamBed.getBlock().getSelectedBoundingBox(Minecraft.getMinecraft().theWorld, this.bedPosition).expand(25, 100, 25);
+            AxisAlignedBB expandedAABB = this.teamBed.getBlock().getSelectedBoundingBox(Minecraft.getMinecraft().theWorld, this.bedPosition).expand(18, 100, 18);
             List<EntityPlayer> entities = Minecraft.getMinecraft().theWorld.getEntitiesWithinAABB(EntityPlayer.class, expandedAABB);
 
             /* Bed Threshold Check */
@@ -191,7 +211,7 @@ public class BedListener {
             double y = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.partialTicks;
             double z = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.partialTicks;
 
-            AxisAlignedBB expandedAABB = this.teamBed.getBlock().getSelectedBoundingBox(Minecraft.getMinecraft().theWorld, this.bedPosition).expand(25, 100, 25);
+            AxisAlignedBB expandedAABB = this.teamBed.getBlock().getSelectedBoundingBox(Minecraft.getMinecraft().theWorld, this.bedPosition).expand(18, 100, 18);
 
             GL11.glPushMatrix();
             GL11.glTranslated(-x, -y, -z); //go from cartesian x,y,z coordinates to in-world x,y,z coordinates

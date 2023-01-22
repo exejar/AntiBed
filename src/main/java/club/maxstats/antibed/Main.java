@@ -17,6 +17,7 @@ public class Main {
     private static Main instance;
     private SetBot serverCommand;
     private List<String> whitelist = new ArrayList<>();
+    private List<String> permaWhitelist = new ArrayList<>();
 
     @Mod.EventHandler
     public void init(FMLPreInitializationEvent event) {
@@ -35,5 +36,9 @@ public class Main {
 
     public List<String> getWhitelist() {
         return this.whitelist;
+    }
+
+    public List<String> getPermaWhiteList() {
+        return this.permaWhitelist;
     }
 }
