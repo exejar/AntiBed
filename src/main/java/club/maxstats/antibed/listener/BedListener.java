@@ -17,6 +17,8 @@ import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.util.*;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
+import net.minecraftforge.event.entity.living.LivingEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.lwjgl.opengl.GL11;
@@ -32,7 +34,7 @@ public class BedListener {
     @SubscribeEvent
     public void onChat(ClientChatReceivedEvent event) {
         /* Search for nearest bed and set it as team bed */
-        if (event.message.getFormattedText().contains("Protect your bed and destroy the enemy beds.")) {
+        if (event.message.getFormattedText().contains("Protect your bed and destroy the enemy beds.") && !event.message.getFormattedText().contains(":")) {
             Main.getInstance().getWhitelist().clear();
             this.teamBed = null;
             this.bedPosition = null;
@@ -122,6 +124,7 @@ public class BedListener {
                 }
             }
         }
+
         if (this.entitySearch && this.teamBed != null && this.bedPosition != null) {
             /* Anti AFK using System.currentTime */
 
@@ -195,6 +198,15 @@ public class BedListener {
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
+            }
+
+            /* Check if player has been hurt */
+            if (Minecraft.getMinecraft().thePlayer.maxHurtTime != 0 && (Minecraft.getMinecraft().thePlayer.maxHurtTime == Minecraft.getMinecraft().thePlayer.hurtTime + 1)) {
+                Minecraft.getMinecraft().thePlayer.sendChatMessage("/lobby");
+                Main.getInstance().broadcastToPlayer("Lobby " + EnumChatFormatting.RED + "AntiBed Bot took damage.");
+                this.teamBed = null;
+                this.bedPosition = null;
+                this.entitySearch = false;
             }
         }
     }
