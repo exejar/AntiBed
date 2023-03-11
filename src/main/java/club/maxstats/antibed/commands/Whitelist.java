@@ -25,7 +25,6 @@ public class Whitelist extends CommandBase {
             Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Incorrect Command Usage.\n/whitelist <PlayerName>"));
         } else {
             Main.getInstance().getPermaWhiteList().add(args[0].toUpperCase());
-            Main.getInstance().getWhitelist().add(args[0].toUpperCase());
             Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "Added " + args[0] + " to whitelist."));
         }
     }

@@ -10,6 +10,8 @@ import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.item.EntityEnderPearl;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemEnderPearl;
 import net.minecraft.scoreboard.Scoreboard;
@@ -37,11 +39,7 @@ public class BedListener {
             this.bedPosition = null;
             this.entitySearch = false;
 
-            Main.getInstance().getWhitelist().add(Minecraft.getMinecraft().thePlayer.getName().toUpperCase());
-
-            for (String s : Main.getInstance().getPermaWhiteList()) {
-                Main.getInstance().getWhitelist().add(s);
-            }
+            Main.getInstance().getWhitelist().add(Minecraft.getMinecraft().thePlayer.getUniqueID());
 
             this.timer = System.currentTimeMillis();
         } else if (event.message.getUnformattedText().contains("§f§lReward Summary")) {
@@ -58,8 +56,8 @@ public class BedListener {
         return playerPos.distanceTo(bedPos);
     }
 
-    private double distanceTo(EntityPlayer player, BlockPos blockPosition) {
-        Vec3 playerPos = player.getPositionVector();
+    private double distanceTo(Entity entity, BlockPos blockPosition) {
+        Vec3 playerPos = entity.getPositionVector();
         Vec3 bedPos = new Vec3(blockPosition.getX(), blockPosition.getY(), blockPosition.getZ());
         return playerPos.distanceTo(bedPos);
     }
@@ -108,14 +106,18 @@ public class BedListener {
                     AxisAlignedBB expandedAABB = this.teamBed.getBlock().getSelectedBoundingBox(Minecraft.getMinecraft().theWorld, this.bedPosition).expand(18, 100, 18);
                     List<EntityPlayer> entities = Minecraft.getMinecraft().theWorld.getEntitiesWithinAABB(EntityPlayer.class, expandedAABB);
                     for (EntityPlayer entity : entities) {
-                        Main.getInstance().getWhitelist().add(entity.getName().toUpperCase());
+                        Main.getInstance().getWhitelist().add(entity.getUniqueID());
                     }
 
                     /* Whitelist watchdog bots */
                     Scoreboard scoreboard = Minecraft.getMinecraft().theWorld.getScoreboard();
                     scoreboard.getTeams().forEach(t -> {
                         if (t.getColorPrefix().contains("§c") && !t.getColorPrefix().contains("R")) {
-                            t.getMembershipCollection().forEach(m -> Main.getInstance().getWhitelist().add(m.toUpperCase()));
+                            t.getMembershipCollection().forEach(m -> {
+                                EntityPlayer member = Minecraft.getMinecraft().theWorld.getPlayerEntityByName(m);
+                                if (member != null)
+                                    Main.getInstance().getWhitelist().add(member.getUniqueID());
+                            });
                         }
                     });
                 }
@@ -166,16 +168,18 @@ public class BedListener {
             }
 
             AxisAlignedBB expandedAABB = this.teamBed.getBlock().getSelectedBoundingBox(Minecraft.getMinecraft().theWorld, this.bedPosition).expand(18, 100, 18);
-            List<EntityPlayer> entities = Minecraft.getMinecraft().theWorld.getEntitiesWithinAABB(EntityPlayer.class, expandedAABB);
+            List<Entity> entities = Minecraft.getMinecraft().theWorld.getEntitiesWithinAABB(Entity.class, expandedAABB);
 
             /* Bed Threshold Check */
-            for (EntityPlayer player : entities) {
-                if (!Main.getInstance().getWhitelist().contains(player.getName().toUpperCase())) {
-                    Minecraft.getMinecraft().thePlayer.sendChatMessage("/lobby");
-                    Main.getInstance().broadcastToPlayer("Lobby " + EnumChatFormatting.YELLOW + player.getName() + EnumChatFormatting.RED + " Found within Bed Threshold. " + EnumChatFormatting.YELLOW + distanceTo(player, this.bedPosition) + " blocks" + EnumChatFormatting.RED + " away");
-                    this.teamBed = null;
-                    this.bedPosition = null;
-                    this.entitySearch = false;
+            for (Entity entity : entities) {
+                if (entity instanceof EntityPlayer) {
+                    if (!Main.getInstance().getWhitelist().contains(entity.getUniqueID()) && !Main.getInstance().getPermaWhiteList().contains(entity.getName().toUpperCase())) {
+                        Main.getInstance().broadcastToPlayer("Lobby " + EnumChatFormatting.YELLOW + entity.getName() + EnumChatFormatting.RED + " Found within Bed Threshold. " + EnumChatFormatting.YELLOW + distanceTo(entity, this.bedPosition) + " blocks" + EnumChatFormatting.RED + " away");
+                        leaveGame();
+                    }
+                } else if (entity instanceof EntityEnderPearl) {
+                    Main.getInstance().broadcastToPlayer("Lobby " + EnumChatFormatting.YELLOW + "Ender Pearl Entity" + EnumChatFormatting.RED + " Found within Bed Threshold. " + EnumChatFormatting.YELLOW + distanceTo(entity, this.bedPosition) + " blocks" + EnumChatFormatting.RED + " away");
+                    leaveGame();
                 }
             }
 
@@ -184,11 +188,8 @@ public class BedListener {
                 for (EntityPlayer player : Minecraft.getMinecraft().theWorld.playerEntities) {
                     try {
                         if (player.getHeldItem().getItem() instanceof ItemEnderPearl && !Main.getInstance().getWhitelist().contains(player.getName().toUpperCase())) {
-                            Minecraft.getMinecraft().thePlayer.sendChatMessage("/lobby");
                             Main.getInstance().broadcastToPlayer("Lobby " + EnumChatFormatting.YELLOW + player.getName() + EnumChatFormatting.RED + " Holding Ender Pearl " + EnumChatFormatting.YELLOW + distanceTo(player, this.bedPosition) + EnumChatFormatting.RED + " Blocks from your Bed.");
-                            this.teamBed = null;
-                            this.bedPosition = null;
-                            this.entitySearch = false;
+                            this.leaveGame();
                         }
                     } catch (Exception ignored) {
                     }
@@ -199,13 +200,17 @@ public class BedListener {
 
             /* Check if player has been hurt */
             if (Minecraft.getMinecraft().thePlayer.maxHurtTime != 0 && (Minecraft.getMinecraft().thePlayer.maxHurtTime == Minecraft.getMinecraft().thePlayer.hurtTime + 1)) {
-                Minecraft.getMinecraft().thePlayer.sendChatMessage("/lobby");
                 Main.getInstance().broadcastToPlayer("Lobby " + EnumChatFormatting.RED + "AntiBed Bot took damage.");
-                this.teamBed = null;
-                this.bedPosition = null;
-                this.entitySearch = false;
+                this.leaveGame();
             }
         }
+    }
+
+    private void leaveGame() {
+        Minecraft.getMinecraft().thePlayer.sendChatMessage("/lobby");
+        this.teamBed = null;
+        this.bedPosition = null;
+        this.entitySearch = false;
     }
 
     @SubscribeEvent

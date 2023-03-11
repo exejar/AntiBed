@@ -11,12 +11,13 @@ import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 @Mod(modid = "antibed", name = "AntiBed", version = "1.0.0")
 public class Main {
     private static Main instance;
     private SetBot serverCommand;
-    private List<String> whitelist = new ArrayList<>();
+    private List<UUID> whitelist = new ArrayList<>();
     private List<String> permaWhitelist = new ArrayList<>();
 
     @Mod.EventHandler
@@ -34,7 +35,7 @@ public class Main {
     }
     public static Main getInstance() { return instance; }
 
-    public List<String> getWhitelist() {
+    public List<UUID> getWhitelist() {
         return this.whitelist;
     }
 
